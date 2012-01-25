@@ -18,33 +18,52 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(in-package :common-lisp-user)
+
+(load "numeric.lisp")
+
+(defpackage :distribution 
+  (:use  :common-lisp :numeric)
+  (:export  :create-normal-random-stream   :generate-normal-random-list 
+	    :generate-point-list   :give-me-the-flu 
+	    :shuffle   :make-histogram))
+
+(in-package :distribution)
 
 (load "cluster.lisp")
 
-(defun create-normal-random-stream (no-samples &optional (median 0) (var nil))
-  (let ((factor (sqrt (/ 12.0 no-samples)))
-	(correction (* -0.5 no-samples)))
+(defun calculate-upper-bound-from-variance (var)
+  "Used internally to calculate the length of the intervall random numbers are taken from in order to create a normally distributed random stream with variance VAR"
+  (find-zero-newton (lambda (x) (- (* 1/3 x x x) (* 1/4 x x) var)) 1))
+
+(defun create-normal-random-stream (no-samples &optional (median 0) (var 1/12))
+  "Makes a function continuously returning normally distributed random numbers with median MEDIAN and variance VAR."
+  (let* ((factor (sqrt (/ 1.0 no-samples))) ;12.0 no-samples))) would yield a distribution with variance = 1 if var = 1, otherwise rubbish
+	(upper-bound (calculate-upper-bound-from-variance var))
+	(correction (* -0.5 upper-bound no-samples)))
     (labels ((summarize-randoms (no)
 	       (cond ((= no 0) 0.0)
-		     ((= no 1) (random 1.0))
-		     (t (+ (random 1.0) (summarize-randoms (1- no)))))))
+		     ((= no 1) (random upper-bound))
+		     (t (+ (random upper-bound) (summarize-randoms (1- no)))))))
       (lambda ()
 	(* factor (+ correction (summarize-randoms no-samples)))))))
 
 
-(defun generate-normal-random-list (no &optional (no-samples 20) (median 0) (var nil))
+(defun generate-normal-random-list (no &optional (no-samples 20) (median 0) (var 1/12))
+  "Creates a list of random numbers with length NO-SAMPLES, median MEDIAN and variance VAR"
   (let ((next (create-normal-random-stream no-samples median var)))
     (labels ((give-me (no)
-		     (cond ((< no 1) nil)
-			   (t (cons (funcall next) (give-me (1- no)))))))
+	       (cond ((< no 1) nil)
+		     (t (cons (funcall next) (give-me (1- no)))))))
       (give-me no))))
 
 
-(defun generate-point-list (middle-point  no &optional (var nil))
+(defun generate-point-list (middle-point  no &optional (var 1/12))
+  "Generates a list of NO lists of normally distributed random numbers with variance VAR. MIDDLE-POINT dis a list of numbers. Each list has as many entries as MIDDLE-POINT, where MIDDLE-POINT is taken to be the n-dimensional median"  
   (let ((len (length middle-point)))
     (labels ((gen-list (n)
 	       (cond ((<= n 0) nil)
-		     (t (cons (generate-normal-random-list len) (gen-list (1- n)))))))
+		     (t (cons (generate-normal-random-list len 20 0 var) (gen-list (1- n)))))))
       (let ((point-list (gen-list no)))
 	(mapcar (lambda (x)
 		  (vector-add (cons middle-point x))) point-list)))))
@@ -52,6 +71,7 @@
 
 
 (defun give-me-the-flu (vec intervall no)
+  "Returnes a list of equally distributed points ( = lists). VEC is a point and intervall a vector ( = list, again). All points lie within the area with one of its corners being VEC and the other corners being defined by VEC + INTERVALL."  
   (labels
       ((create-point (ints)
 	 (cond ((null ints) nil)
@@ -62,14 +82,16 @@
     (mapcar (lambda (x)
 	      (vector-add (cons vec x)))
 	    (create-point-list no))))
-	      
+
 
 
 (defun shuffle (&rest lists)
+  "Takes several point (= list) lists and shuffles them into one list randomly."
   (sort (reduce #'union lists) #'< :key (lambda (x) (random 1.0))))
 
 
 (defun make-histogram (point-list &optional (no-intervalls 20))
+  "Creates a histogram by taking POINT-LIST partitioning the intervall the POINT-LIST covers int NO-INTERVALLS sections and counting how many points of POINT-LIST lie within each section.  Returns a list with these summaries"
   (let* ((max (car (give-greatest point-list (lambda (x y) (- x y)))))
 	 (min (car (give-greatest point-list (lambda (x y) (- y x)))))
 	 (intervall-len (/ (- max min) no-intervalls)))
@@ -89,17 +111,18 @@
 	  (print min)
 	  (count-into-buckets point-list min))))))
 
-			  
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Test
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Generate histogram of a sequence of random numbers 
-(output-table (make-histogram (generate-normal-random-list 30000) 20))
+;(output-table (make-histogram (generate-normal-random-list 30000) 20))
 
 ;; Generate list of 2 dimensional points
-(output-table (generate-point-list '(10 10 10) 10000))
+;(output-table (generate-point-list '(10 10 10) 10000))
 
-(output-table (append (generate-point-list '(0 0) 3000) (generate-point-list '(20 20) 3000)))
+;(output-table (append (generate-point-list '(0 0) 3000) (generate-point-list '(20 20) 3000)))
 
 
 
