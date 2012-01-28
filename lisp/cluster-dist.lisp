@@ -417,89 +417,15 @@ rs"
 
 
 
-;;==============
-;; I/O Functions				
-;;==============
-
-;; These functions are way less efficient than the inefficient stuff above
-;; Mainly for discovering Common Lisp
-;; Never to be used !
-
-
-(defun get-token (&key stream type)
-  "Returnes a token read from stream (STDIN if not given) and tries to convert it to TYPE (String if not given)"
-  (labels ((get-token-as-list (read-something)
-	     (let ((c (read-char stream nil)))
-	       (cond ((or (not c) (eq c 'eof-value)) nil)
-		     ((eq c #\ )
-		      (cond (read-something nil)
-			    (t (get-token-as-list t))))
-		     ((eq c #\Newline)
-		      (cond (read-something (unread-char c stream))
-			    (t c)))
-		     (t (let ((rest (get-token-as-list t)))
-			  (cons c (cond ((eq rest #\Newline) nil)
-					(t rest)))))))))
-    (let ((token (get-token-as-list nil)))
-      (cond ((not token) nil)
-	    ((eq token #\Newline) nil)
-	    (t (coerce token (cond ((eq type nil) 'string)
-					     (t type))))))))
-
-
-(defun read-vector (&optional in-stream (getter #'get-token))
-  "Reads in several tokens from STREAM (STDIN if none given) and returns them as CONS list. Uses GETTER to retrieve the tokens (GET-TOKEN if none given)."
-  (let ((token (funcall getter :stream in-stream)))
-    (cond ((not token) nil)
-	  (t (cons token (read-vector in-stream getter))))))
-
-
-(defun read-vectors-from-list (&optional name)
-  "Read in subsequent vectors from a file NAME untit an empty line is discovered."
-  (labels ((read-vector-list (stream)
-	     (let ((next (mapcar #'read-from-string (read-vector stream))))
-	       (cond ((not next) nil)
-		     (t (cons next (read-vector-list stream)))))))
-    (cond (name
-	   (let* ((instream (open name :direction :input))
-		  (*read-eval* nil)
-		  (vectors (read-vector-list instream)))
-	     (close instream)
-	     vectors))
-	  (t (let ((*read-eval* nil))
-	       (read-vector-list *standard-input*))))))
-
-
-(defun lispify (vec)
-  "Takes a list of strings, have all of them evaluated by clisp and return new list with the results"
-  (let ((*read-eval* nil))
-    (mapcar #'read-from-string vec)))
-
-
-
-(defun output-table (table &optional (dest t))
-  "Prints a table (a list containing lists of numbers) to stream DEST one row at a line"
-  (labels ((output-line (line)
-	     (cond ((not line) (format dest "~%"))
-		   ((atom line) (format dest "~G~%" line))
-		   (t (progn
-			(format dest "~G" (car line))
-			(output-line (cdr line)))))))
-    (cond ((not table) nil)
-	  (t (progn
-	       (output-line (car table))
-	       (output-table (cdr table)))))))
-
-
-
 ;;=============
 ;; Main program
 ;;=============
 
+(load "io.lisp")
 
 (defun main-density ()
   "Main program to be called when compiled as stand-alone"
-  (print (cluster-with-max-density (read-vectors-from-list *file-name*) 8)))
+  (print (cluster-with-max-density (io:read-vectors-from-list *file-name*) 8)))
 
 
 (defun print-all-clusters (get-next)
@@ -512,7 +438,7 @@ rs"
 			  (lambda (y)
 			    (progn
 			      (format t "# ~$ ~%" (length y))
-			      (output-table y))) (cdr x))) next)
+			      (io:output-table y))) (cdr x))) next)
 		      (print-next (funcall get-next))))))
     (print-next (funcall get-next))))
 
@@ -520,7 +446,7 @@ rs"
 (defun main ()
   (print-all-clusters
    (make-cluster-distance-stream
-    (read-vectors-from-list *file-name*))))
+    (io:read-vectors-from-list *file-name*))))
 
 
 ;;===========

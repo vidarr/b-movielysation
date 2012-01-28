@@ -24,17 +24,25 @@
 
 (defpackage :distribution 
   (:use  :common-lisp :numeric)
-  (:export  :create-normal-random-stream   :generate-normal-random-list 
-	    :generate-point-list   :give-me-the-flu 
-	    :shuffle   :make-histogram))
+  (:export  :create-normal-random-stream
+	    :generate-distributed-point
+	    :generate-list
+	    :generate-random-streams
+	    :generate-normal-random-list 
+	    :generate-point-list
+	    :give-me-the-flu 
+	    :shuffle
+	    :make-histogram))
 
 (in-package :distribution)
 
 (load "cluster.lisp")
 
+;; There is someting wrong?
 (defun calculate-upper-bound-from-variance (var)
   "Used internally to calculate the length of the intervall random numbers are taken from in order to create a normally distributed random stream with variance VAR"
   (find-zero-newton (lambda (x) (- (* 1/3 x x x) (* 1/4 x x) var)) 1))
+
 
 (defun create-normal-random-stream (no-samples &optional (median 0) (var 1/12))
   "Makes a function continuously returning normally distributed random numbers with median MEDIAN and variance VAR."
@@ -46,7 +54,7 @@
 		     ((= no 1) (random upper-bound))
 		     (t (+ (random upper-bound) (summarize-randoms (1- no)))))))
       (lambda ()
-	(* factor (+ correction (summarize-randoms no-samples)))))))
+	(+ (* factor (+ correction (summarize-randoms no-samples))) median)))))
 
 
 (defun generate-normal-random-list (no &optional (no-samples 20) (median 0) (var 1/12))
@@ -58,16 +66,34 @@
       (give-me no))))
 
 
-(defun generate-point-list (middle-point  no &optional (var 1/12))
-  "Generates a list of NO lists of normally distributed random numbers with variance VAR. MIDDLE-POINT dis a list of numbers. Each list has as many entries as MIDDLE-POINT, where MIDDLE-POINT is taken to be the n-dimensional median"  
-  (let ((len (length middle-point)))
-    (labels ((gen-list (n)
-	       (cond ((<= n 0) nil)
-		     (t (cons (generate-normal-random-list len 20 0 var) (gen-list (1- n)))))))
-      (let ((point-list (gen-list no)))
-	(mapcar (lambda (x)
-		  (vector-add (cons middle-point x))) point-list)))))
+(defun generate-list (stream no)
+  "Reads NO elements from STREAM and returns them as list"
+  (cond ((< no 1) nil)
+	(t (cons (funcall stream) (generate-list stream (1- no))))))
 
+
+(defun generate-distributed-point (random-streams)
+  "Takes a list of streams and creates a list whith one element from each stream (in order of the streams)"
+  (mapcar 'funcall random-streams))
+
+
+(defun generate-random-streams (no-samples medians variances)
+  "Generates a list of normal-random-streams. MEDIANS is a list of medians to be used for the distributions, VARIANCES a list of variances. Both lists should be of equal length. The list of streams will contain as many elements as MEDIANS."
+  (cond ((not medians) nil)
+	;((atom medians) (create-normal-random-stream no-samples medians variances))
+	(t (cons (create-normal-random-stream no-samples (car medians) (car variances))
+		 (generate-random-streams no-samples (cdr medians) (cdr variances))))))
+
+
+;; (defun generate-point-list (middle-point  no &optional (var 1/12))
+;;   "Generates a list of NO lists of normally distributed random numbers with variance VAR. MIDDLE-POINT dis a list of numbers. Each list has as many entries as MIDDLE-POINT, where MIDDLE-POINT is taken to be the n-dimensional median"  
+;;   (let ((len (length middle-point)))
+;;     (labels ((gen-list (n)
+;; 	       (cond ((<= n 0) nil)
+;; 		     (t (cons (generate-normal-random-list len 20 0 var) (gen-list (1- n)))))))
+;;       (let ((point-list (gen-list no)))
+;; 	(mapcar (lambda (x)
+;; 		  (vector-add (cons middle-point x))) point-list)))))
 
 
 (defun give-me-the-flu (vec intervall no)
@@ -82,7 +108,6 @@
     (mapcar (lambda (x)
 	      (vector-add (cons vec x)))
 	    (create-point-list no))))
-
 
 
 (defun shuffle (&rest lists)
