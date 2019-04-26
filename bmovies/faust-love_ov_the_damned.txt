@@ -1,0 +1,14 @@
+{{Infobox Film
+| DT      = Faust - Love of the Damned
+| OT      = Faust - Love of the Damned
+| PL      = [[Spanien]]
+| PJ      = 2000
+| LEN     = 98
+| FSK     = 18
+| REG     = [[Brian Yuzna]]
+| MUSIK   = [[Xavier Capellas ]]
+| KAMERA  = [[Jacques Haitkin]]
+| SCHNITT = [[Luis de la Madrid]]
+| DS      = 
+* [[Mark Frost]]: John Jaspers
+* [[]]: Der Teufel
